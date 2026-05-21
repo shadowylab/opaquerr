@@ -1,0 +1,23 @@
+[package]
+name = "opaquerr"
+version = "0.1.0"
+edition = "2021"
+description = "Opaque error type with a user-defined kind."
+authors = ["Yuki Kishimoto <yukikishimoto@protonmail.com>"]
+homepage = "https://github.com/shadowylab/opaquerr"
+repository = "https://github.com/shadowylab/opaquerr.git"
+license = "MIT"
+rust-version = "1.81.0"
+keywords = ["error", "kind", "opaque", "no_std"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[features]
+default = []
+alloc = []
+
+[[example]]
+name = "my_opaque_error"
+required-features = ["alloc"]
