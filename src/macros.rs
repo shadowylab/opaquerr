@@ -257,6 +257,13 @@ macro_rules! define_error {
                 Self::with_static_message(kind, message)
             }
         }
+
+        impl From<core::convert::Infallible> for $name {
+            #[inline]
+            fn from(error: core::convert::Infallible) -> Self {
+                match error {}
+            }
+        }
     };
 }
 
@@ -386,6 +393,13 @@ macro_rules! define_error {
                 Self::with_static_message(kind, message)
             }
         }
+
+        impl From<core::convert::Infallible> for $name {
+            #[inline]
+            fn from(error: core::convert::Infallible) -> Self {
+                match error {}
+            }
+        }
     };
 }
 
@@ -505,6 +519,20 @@ mod tests {
         let error: TestError = ErrorKind::Invalid.into();
 
         assert_eq!(error.kind(), ErrorKind::Invalid);
+    }
+
+    #[test]
+    fn opaque_error_converts_from_infallible() {
+        fn infallible() -> Result<(), core::convert::Infallible> {
+            Ok(())
+        }
+
+        fn propagate() -> Result<(), TestError> {
+            infallible()?;
+            Ok(())
+        }
+
+        assert!(propagate().is_ok());
     }
 
     #[test]
