@@ -122,12 +122,22 @@ macro_rules! define_error {
         $vis:vis $name:ident($kind:ty)
         from {
             $(
+                $(#[$source_meta:meta])*
                 $source:ty => $source_kind:expr
             ),+ $(,)?
         }
         $(;)?
     ) => {
-        compile_error!("opaquerr::error! `from` requires the `alloc` feature");
+        $crate::define_error! {
+            @base
+            $(#[$error_meta])*
+            $vis $name($kind);
+        }
+
+        $(
+            $(#[$source_meta])*
+            compile_error!("opaquerr::error! `from` requires the `alloc` feature");
+        )+
     };
 
     (
@@ -236,6 +246,7 @@ macro_rules! define_error {
         $vis:vis $name:ident($kind:ty)
         from {
             $(
+                $(#[$source_meta:meta])*
                 $source:ty => $source_kind:expr
             ),+ $(,)?
         }
@@ -248,6 +259,7 @@ macro_rules! define_error {
         }
 
         $(
+            $(#[$source_meta])*
             impl From<$source> for $name {
                 #[inline]
                 fn from(error: $source) -> Self {
@@ -401,6 +413,16 @@ mod tests {
         }
     }
 
+    define_error! {
+        /// Test mapped opaque error with cfg-gated sources.
+        pub CfgMappedError(ErrorKind)
+
+        from {
+            #[cfg(feature = "alloc")]
+            SourceError => ErrorKind::Other,
+        }
+    }
+
     #[test]
     fn simple_error_uses_kind_display() {
         let error = Error::simple(ErrorKind::Invalid);
@@ -487,6 +509,23 @@ mod tests {
     #[cfg(feature = "alloc")]
     fn opaque_error_maps_source_errors() {
         let error: MappedError = SourceError.into();
+
+        assert_eq!(error.kind(), ErrorKind::Other);
+        assert_eq!(error.to_string(), "source error");
+        assert!(error.source().is_some());
+    }
+
+    #[test]
+    fn opaque_error_accepts_cfg_gated_source_mapping() {
+        let error = CfgMappedError::simple(ErrorKind::Invalid);
+
+        assert_eq!(error.kind(), ErrorKind::Invalid);
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn opaque_error_maps_cfg_gated_source_errors() {
+        let error: CfgMappedError = SourceError.into();
 
         assert_eq!(error.kind(), ErrorKind::Other);
         assert_eq!(error.to_string(), "source error");
