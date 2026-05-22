@@ -323,7 +323,7 @@ macro_rules! define_error {
             #[inline]
             pub fn new<E>(kind: $kind, error: E) -> Self
             where
-                E: Into<$crate::BoxedError>,
+                E: Into<$crate::__private::Box<dyn core::error::Error + Send + Sync>>,
             {
                 Self($crate::Error::new(kind, error))
             }
@@ -495,7 +495,7 @@ mod tests {
     #[test]
     #[cfg(feature = "alloc")]
     fn opaque_error_new_accepts_boxed_source() {
-        let source: crate::BoxedError = alloc::boxed::Box::new(SourceError);
+        let source = alloc::boxed::Box::new(SourceError);
         let error = TestError::new(ErrorKind::Other, source);
 
         assert_eq!(error.kind(), ErrorKind::Other);

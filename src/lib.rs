@@ -12,14 +12,16 @@ use core::{error, fmt};
 
 mod macros;
 
-/// A boxed source error.
+#[doc(hidden)]
 #[cfg(feature = "alloc")]
-pub type BoxedError = Box<dyn error::Error + Send + Sync>;
+pub mod __private {
+    pub use alloc::boxed::Box;
+}
 
 #[cfg(feature = "alloc")]
 struct Custom<K> {
     kind: K,
-    error: BoxedError,
+    error: Box<dyn error::Error + Send + Sync>,
 }
 
 enum Inner<K> {
@@ -86,7 +88,7 @@ impl<K> Error<K> {
     #[cfg(feature = "alloc")]
     pub fn new<E>(kind: K, error: E) -> Self
     where
-        E: Into<BoxedError>,
+        E: Into<Box<dyn error::Error + Send + Sync>>,
     {
         Self(Inner::Custom(Custom {
             kind,
@@ -138,9 +140,9 @@ impl<K> From<(K, &'static str)> for Error<K> {
 }
 
 #[cfg(feature = "alloc")]
-impl<K> From<(K, BoxedError)> for Error<K> {
+impl<K> From<(K, Box<dyn error::Error + Send + Sync>)> for Error<K> {
     #[inline]
-    fn from((kind, error): (K, BoxedError)) -> Self {
+    fn from((kind, error): (K, Box<dyn error::Error + Send + Sync>)) -> Self {
         Self::new(kind, error)
     }
 }

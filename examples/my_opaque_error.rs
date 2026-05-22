@@ -30,9 +30,14 @@ fn boxed() -> Result<(), Error> {
     Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "timed out").into())
 }
 
+fn owned_string() -> Result<(), Error> {
+    Err(Error::new(ErrorKind::Other, "something"))
+}
+
 fn main() -> Result<(), Error> {
     simple()?;
     with_static_message()?;
     boxed()?;
+    owned_string()?;
     Ok(())
 }
