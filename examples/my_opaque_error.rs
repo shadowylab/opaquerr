@@ -1,4 +1,5 @@
 opaquerr::define_kind! {
+    exhaustive
     pub ErrorKind {
         /// Input is invalid.
         Invalid => "input is invalid",

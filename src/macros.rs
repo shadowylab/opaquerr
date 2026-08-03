@@ -1,8 +1,9 @@
 /// Defines an error kind enum.
 ///
-/// The generated enum is `#[non_exhaustive]` and derives `Debug`, `Clone`,
-/// `Copy`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, and `Hash`. A `Display` implementation is generated from
-/// the string assigned to each variant.
+/// By default, the generated enum is `#[non_exhaustive]`. It derives `Debug`,
+/// `Clone`, `Copy`, `PartialEq`, `Eq`, `PartialOrd`, `Ord`, and `Hash`. A
+/// `Display` implementation is generated from the string assigned to each
+/// variant.
 ///
 /// # Examples
 ///
@@ -17,9 +18,31 @@
 ///     }
 /// }
 /// ```
+///
+/// Use the `exhaustive` modifier when adding variants should be a breaking API
+/// change and downstream crates should be able to match every variant without a
+/// wildcard arm:
+///
+/// ```
+/// opaquerr::define_kind! {
+///     exhaustive
+///     pub ErrorKind {
+///         Invalid => "input is invalid",
+///         Other => "other error",
+///     }
+/// }
+/// ```
 #[macro_export]
 macro_rules! define_kind {
+    (exhaustive $($tokens:tt)*) => {
+        $crate::define_kind! {
+            @exhaustive
+            $($tokens)*
+        }
+    };
+
     (
+        @exhaustive
         $(#[$enum_meta:meta])*
         $vis:vis $name:ident {
             $(
@@ -41,6 +64,7 @@ macro_rules! define_kind {
     };
 
     (
+        @exhaustive
         $(#[$enum_meta:meta])*
         $vis:vis enum $name:ident {
             $(
@@ -62,6 +86,50 @@ macro_rules! define_kind {
     };
 
     (
+        $(#[$enum_meta:meta])*
+        $vis:vis $name:ident {
+            $(
+                $(#[$variant_meta:meta])*
+                $variant:ident => $message:expr
+            ),+ $(,)?
+        }
+    ) => {
+        $crate::define_kind! {
+            @base
+            #[non_exhaustive]
+            $(#[$enum_meta])*
+            $vis $name {
+                $(
+                    $(#[$variant_meta])*
+                    $variant => $message,
+                )+
+            }
+        }
+    };
+
+    (
+        $(#[$enum_meta:meta])*
+        $vis:vis enum $name:ident {
+            $(
+                $(#[$variant_meta:meta])*
+                $variant:ident => $message:expr
+            ),+ $(,)?
+        }
+    ) => {
+        $crate::define_kind! {
+            @base
+            #[non_exhaustive]
+            $(#[$enum_meta])*
+            $vis $name {
+                $(
+                    $(#[$variant_meta])*
+                    $variant => $message,
+                )+
+            }
+        }
+    };
+
+    (
         @base
         $(#[$enum_meta:meta])*
         $vis:vis $name:ident {
@@ -72,7 +140,6 @@ macro_rules! define_kind {
         }
     ) => {
         $(#[$enum_meta])*
-        #[non_exhaustive]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         $vis enum $name {
             $(
@@ -417,6 +484,17 @@ mod tests {
         }
     }
 
+    define_kind! {
+        exhaustive
+        /// Exhaustive test error kind.
+        pub ExhaustiveErrorKind {
+            /// Invalid input.
+            Invalid => "invalid input",
+            /// Other error.
+            Other => "other error",
+        }
+    }
+
     define_error! {
         /// Test opaque error.
         pub TestError(ErrorKind)
@@ -477,6 +555,16 @@ mod tests {
         assert_eq!(error.kind(), ErrorKind::Invalid);
         #[cfg(feature = "alloc")]
         assert_eq!(error.to_string(), "invalid input");
+    }
+
+    #[test]
+    fn exhaustive_kind_can_be_matched_without_wildcard() {
+        let message = match ExhaustiveErrorKind::Invalid {
+            ExhaustiveErrorKind::Invalid => "invalid input",
+            ExhaustiveErrorKind::Other => "other error",
+        };
+
+        assert_eq!(message, "invalid input");
     }
 
     #[test]
