@@ -149,6 +149,21 @@ macro_rules! define_error {
         #[repr(transparent)]
         $vis struct $name($crate::Error<$kind>);
 
+        impl core::cmp::PartialEq for $name
+        where
+            $kind: core::cmp::PartialEq,
+        {
+            #[inline]
+            fn eq(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+        }
+
+        impl core::cmp::Eq for $name
+        where
+            $kind: core::cmp::Eq,
+        {}
+
         impl $name {
             /// Creates an error without a specific message or source.
             #[inline]
@@ -278,8 +293,26 @@ macro_rules! define_error {
         #[repr(transparent)]
         $vis struct $name($crate::Error<$kind>);
 
+        impl core::cmp::PartialEq for $name
+        where
+            $kind: core::cmp::PartialEq,
+        {
+            #[inline]
+            fn eq(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+        }
+
+        impl core::cmp::Eq for $name
+        where
+            $kind: core::cmp::Eq,
+        {}
+
         impl $name {
             /// Creates a new error from a kind and an arbitrary error payload.
+            ///
+            /// The payload is preserved as the error source, and its display
+            /// output is captured as the error message.
             #[inline]
             pub fn new<E>(kind: $kind, error: E) -> Self
             where
@@ -404,6 +437,20 @@ mod tests {
     impl core::error::Error for SourceError {}
 
     #[cfg(feature = "alloc")]
+    #[derive(Debug)]
+    struct MessageSource(&'static str);
+
+    #[cfg(feature = "alloc")]
+    impl core::fmt::Display for MessageSource {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.write_str(self.0)
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    impl core::error::Error for MessageSource {}
+
+    #[cfg(feature = "alloc")]
     define_error! {
         /// Test mapped opaque error.
         pub MappedError(ErrorKind)
@@ -433,6 +480,39 @@ mod tests {
     }
 
     #[test]
+    fn errors_compare_by_variant_kind_and_message() {
+        let simple = Error::simple(ErrorKind::Invalid);
+        let same = Error::simple(ErrorKind::Invalid);
+        let message = Error::with_static_message(ErrorKind::Invalid, "message");
+        let same_message = Error::with_static_message(ErrorKind::Invalid, "message");
+        let different_message = Error::with_static_message(ErrorKind::Invalid, "different message");
+        let other = Error::simple(ErrorKind::Other);
+
+        assert_eq!(simple, same);
+        assert_eq!(message, same_message);
+        assert_ne!(message, different_message);
+        assert_ne!(simple, message);
+        assert_ne!(simple, other);
+    }
+
+    #[test]
+    fn opaque_errors_compare_by_variant_kind_and_message() {
+        let simple = TestError::simple(ErrorKind::Invalid);
+        let same = TestError::simple(ErrorKind::Invalid);
+        let message = TestError::with_static_message(ErrorKind::Invalid, "message");
+        let same_message = TestError::with_static_message(ErrorKind::Invalid, "message");
+        let different_message =
+            TestError::with_static_message(ErrorKind::Invalid, "different message");
+        let other = TestError::simple(ErrorKind::Other);
+
+        assert_eq!(simple, same);
+        assert_eq!(message, same_message);
+        assert_ne!(message, different_message);
+        assert_ne!(simple, message);
+        assert_ne!(simple, other);
+    }
+
+    #[test]
     #[cfg(feature = "alloc")]
     fn custom_error_preserves_source() {
         let error = Error::new(ErrorKind::Other, "source error");
@@ -440,6 +520,29 @@ mod tests {
         assert_eq!(error.kind(), ErrorKind::Other);
         assert_eq!(error.to_string(), "source error");
         assert!(error.source().is_some());
+    }
+
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn custom_errors_compare_by_kind_and_cached_message() {
+        let left = Error::new(ErrorKind::Other, MessageSource("source error"));
+        let right = Error::new(ErrorKind::Other, MessageSource("source error"));
+        let different_message = Error::new(ErrorKind::Other, MessageSource("different error"));
+        let simple = Error::simple(ErrorKind::Other);
+        let other = Error::new(ErrorKind::Invalid, MessageSource("source error"));
+
+        assert_eq!(left, right);
+        assert_ne!(left, different_message);
+        assert_ne!(left, simple);
+        assert_ne!(left, other);
+        assert!(left
+            .source()
+            .and_then(|source| source.downcast_ref::<MessageSource>())
+            .is_some());
+
+        fn assert_eq<T: Eq>() {}
+        assert_eq::<Error<ErrorKind>>();
+        assert_eq::<TestError>();
     }
 
     #[test]

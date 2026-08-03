@@ -8,6 +8,8 @@ extern crate alloc;
 
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
+#[cfg(feature = "alloc")]
+use alloc::string::ToString;
 use core::{error, fmt};
 
 mod macros;
@@ -21,7 +23,8 @@ pub mod __private {
 #[cfg(feature = "alloc")]
 struct Custom<K> {
     kind: K,
-    error: Box<dyn error::Error + Send + Sync>,
+    message: Box<str>,
+    source: Box<dyn error::Error + Send + Sync>,
 }
 
 enum Inner<K> {
@@ -31,7 +34,11 @@ enum Inner<K> {
     Custom(Custom<K>),
 }
 
-/// An opaque error with a user-defined kind
+/// An opaque error with a user-defined kind.
+///
+/// Two errors are equal when they have the same representation and their kinds
+/// and messages are equal. Source errors do not participate in equality
+/// comparisons.
 pub struct Error<K>(Inner<K>);
 
 impl<K> fmt::Debug for Error<K>
@@ -48,11 +55,34 @@ where
             Inner::Custom(e) => f
                 .debug_tuple("Error")
                 .field(&e.kind)
-                .field(&e.error)
+                .field(&e.source)
                 .finish(),
         }
     }
 }
+
+impl<K> PartialEq for Error<K>
+where
+    K: PartialEq,
+{
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (Inner::Simple(left), Inner::Simple(right)) => left == right,
+            (
+                Inner::Message(left_kind, left_message),
+                Inner::Message(right_kind, right_message),
+            ) => left_kind == right_kind && left_message == right_message,
+            #[cfg(feature = "alloc")]
+            (Inner::Custom(left), Inner::Custom(right)) => {
+                left.kind == right.kind && left.message == right.message
+            }
+            _ => false,
+        }
+    }
+}
+
+impl<K> Eq for Error<K> where K: Eq {}
 
 impl<K> error::Error for Error<K>
 where
@@ -63,7 +93,7 @@ where
             Inner::Simple(_) => None,
             Inner::Message(_, _) => None,
             #[cfg(feature = "alloc")]
-            Inner::Custom(e) => Some(&*e.error),
+            Inner::Custom(e) => Some(&*e.source),
         }
     }
 }
@@ -77,22 +107,29 @@ where
             Inner::Simple(kind) => kind.fmt(f),
             Inner::Message(_, message) => f.write_str(message),
             #[cfg(feature = "alloc")]
-            Inner::Custom(e) => e.error.fmt(f),
+            Inner::Custom(e) => f.write_str(&e.message),
         }
     }
 }
 
 impl<K> Error<K> {
     /// Creates a new error from a kind and an arbitrary error payload.
+    ///
+    /// The payload is preserved as the error source, and its display output is
+    /// captured as the error message.
     #[inline]
     #[cfg(feature = "alloc")]
     pub fn new<E>(kind: K, error: E) -> Self
     where
         E: Into<Box<dyn error::Error + Send + Sync>>,
     {
+        let source: Box<dyn error::Error + Send + Sync> = error.into();
+        let message: Box<str> = source.to_string().into_boxed_str();
+
         Self(Inner::Custom(Custom {
             kind,
-            error: error.into(),
+            message,
+            source,
         }))
     }
 

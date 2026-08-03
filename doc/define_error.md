@@ -6,9 +6,14 @@ constructors and trait implementations, while keeping the wrapper local to the
 crate that invokes the macro. This allows that crate to implement `From`
 conversions and use the `?` operator.
 
+Equality is structural: errors must use the same representation and have equal
+kinds and messages. Source error payloads remain opaque and do not participate
+in the comparison.
+
 With the `alloc` feature enabled, the optional `from` block maps source errors
 to error kinds by generating `From` implementations that preserve the source
-error.
+error. Its display output is captured as the error message when the opaque error
+is created.
 
 # Examples
 

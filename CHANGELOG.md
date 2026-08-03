@@ -27,6 +27,12 @@
 
 -->
 
+## Unreleased
+
+### Added
+
+- Implement `PartialEq` and `Eq` for `Error`
+
 ## 0.1.0 - 2026/05/22 
 
 First release.
